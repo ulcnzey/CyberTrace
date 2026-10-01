@@ -87,7 +87,7 @@ class DetectorTests(unittest.TestCase):
             packet(protocol="UDP", src_port=53000, dst_port=53, dst_ip="8.8.8.8", tcp_flags=None, dns_query=("a" * 40) + ".example.com"),
         ])
         findings = DnsAnomalyDetector().analyze(context)
-        self.assertEqual(findings[0].confidence, 0.84)
+        self.assertEqual(findings[0].confidence, 0.6)
         self.assertEqual(findings[0].domain, ("a" * 40) + ".example.com")
         benign, _flows = context_from([
             packet(protocol="UDP", src_port=53000, dst_port=53, tcp_flags=None, dns_query="example.com"),
@@ -170,6 +170,22 @@ class DetectorTests(unittest.TestCase):
         context, _flows = context_from([packet()])
         findings = DetectionEngine([Broken(), Healthy()]).run(context)
         self.assertEqual(ids(findings), {"healthy"})
+
+    def test_engine_drops_findings_without_observed_evidence(self) -> None:
+        class Ungrounded:
+            detector_id = "horizontal_port_scan"
+            name = "Horizontal port scan"
+
+            def analyze(self, _context):
+                from app.core.domain import Detection
+
+                return [
+                    Detection("horizontal_port_scan", "Horizontal port scan", 0.9, "", "Review"),
+                    Detection("horizontal_port_scan", "Horizontal port scan", 0.9, "No endpoints.", "Review"),
+                ]
+
+        context, _flows = context_from([packet()])
+        self.assertEqual(DetectionEngine([Ungrounded()]).run(context), [])
 
 
 if __name__ == "__main__":

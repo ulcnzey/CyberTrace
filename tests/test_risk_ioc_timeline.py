@@ -23,6 +23,18 @@ class RiskTests(unittest.TestCase):
         self.assertEqual(finding.severity, "high")
         self.assertEqual(finding.confidence, 0.42)
 
+    def test_unknown_detector_is_not_given_a_severity(self) -> None:
+        finding = Detection(
+            detector_id="not_a_rule",
+            name="Not a rule",
+            confidence=0.4,
+            evidence="Something was seen.",
+            recommended_action="Review.",
+            src_ip="10.0.0.2",
+        )
+        self.assertEqual(apply_severity([finding]), [])
+        self.assertEqual(finding.severity, "")
+
     def test_correlated_alert_keeps_both_fields(self) -> None:
         finding = Detection(
             detector_id="cleartext_telnet",

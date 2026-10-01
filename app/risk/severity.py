@@ -17,6 +17,12 @@ SEVERITIES = ("info", "low", "medium", "high", "critical")
 
 
 def apply_severity(findings: list) -> list:
+    """Set severity only from the policy map. Unknown detectors are dropped."""
+    accepted = []
     for finding in findings:
-        finding.severity = SEVERITY_BY_DETECTOR.get(finding.detector_id, "low")
-    return findings
+        severity = SEVERITY_BY_DETECTOR.get(finding.detector_id)
+        if severity not in SEVERITIES:
+            continue
+        finding.severity = severity
+        accepted.append(finding)
+    return accepted

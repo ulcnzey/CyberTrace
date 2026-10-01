@@ -31,7 +31,9 @@ def build_timeline(
             )
         )
     for alert in alerts:
-        when = alert.timestamp if alert.timestamp is not None else started_at
+        if alert.timestamp is None:
+            continue
+        when = alert.timestamp
         items.append(
             TimelineItem(
                 timestamp=when,

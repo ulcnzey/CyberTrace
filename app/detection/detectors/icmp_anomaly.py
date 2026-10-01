@@ -26,11 +26,15 @@ class IcmpAnomalyDetector:
                 if key in reported_large:
                     continue
                 reported_large.add(key)
+                confidence = min(
+                    0.95,
+                    0.6 + (packet.icmp_payload_len - LARGE_PAYLOAD) / 2000,
+                )
                 findings.append(
                     Detection(
                         detector_id=self.detector_id,
                         name=self.name,
-                        confidence=0.7,
+                        confidence=confidence,
                         evidence=(
                             f"ICMP payload of {packet.icmp_payload_len} bytes from "
                             f"{packet.src_ip} to {packet.dst_ip}."
