@@ -62,7 +62,8 @@
     "sent": "gönderilen",
     "received": "alınan",
     "seconds": "saniye",
-    "to": "→"
+    "to": "→",
+    "theme": "Tema"
   },
   "roles": {
     "internal": "iç",
@@ -175,7 +176,18 @@
     "noEvidence": "Bu bulgu için kanıt saklanmadı.",
     "noAction": "Önerilen eylem saklanmadı.",
     "unknownRule": "bilinmeyen kural",
-    "unspecified": "belirtilmedi"
+    "unspecified": "belirtilmedi",
+    "status": "Durum",
+    "note": "Analist notu",
+    "save": "Durumu kaydet",
+    "saved": "Durum kaydedildi.",
+    "lifecycle": "Durum",
+    "statuses": {
+      "open": "Açık",
+      "acknowledged": "Görüldü",
+      "resolved": "Çözüldü",
+      "dismissed": "Yok sayıldı"
+    }
   },
   "hosts": {
     "title": "Ana Bilgisayarlar",
@@ -302,7 +314,10 @@
     "packets": "Paketler",
     "connections": "Etkin bağlantılar",
     "alerts": "Güvenlik uyarıları",
-    "events": "Güvenlik olayları"
+    "events": "Güvenlik olayları",
+    "chart": "Canlı trafik",
+    "chartEmpty": "Henüz canlı grafik yok",
+    "chartEmptyHint": "Grafik, iki istatistik iletisi gelince başlar. Sayfayı yenilemek eski noktaları uydurmaz."
   },
   "settings": {
     "title": "Ayarlar",
@@ -348,5 +363,241 @@
     "Capture started.": "Yakalama başladı.",
     "Capture finished.": "Yakalama bitti.",
     "Capture stopped.": "Yakalama durduruldu."
+  },
+  "theme": {
+    "title": "Tema",
+    "dark": "Koyu",
+    "light": "Açık"
+  },
+  "rules": {
+    "title": "Tespit kuralları",
+    "lead": "Yerleşik bir dedektörü kapatın veya bildirimsel bir karşılaştırma ekleyin. Kayıtlı eşik, kod varsayılanının yerini alır. Eşik boşsa ortam değişkeni geçerlidir.",
+    "custom": "Özel kural",
+    "name": "Ad",
+    "field": "Alan",
+    "operator": "İşleç",
+    "value": "Değer",
+    "description": "Açıklama",
+    "create": "Kural oluştur",
+    "saved": "Kural kaydedildi.",
+    "none": "Özel kural yok.",
+    "fields": {
+      "source_ip": "Kaynak IP",
+      "destination_ip": "Hedef IP",
+      "destination_port": "Hedef port",
+      "protocol": "Protokol",
+      "packet_count": "Paket sayısı",
+      "byte_count": "Bayt sayısı"
+    },
+    "operators": {
+      "equals": "eşittir",
+      "not_equals": "eşit değildir",
+      "greater_than": "büyüktür",
+      "less_than": "küçüktür",
+      "contains": "içerir"
+    }
+  },
+  "geoip": {
+    "label": "GeoIP",
+    "unavailable": "GeoIP kullanılamıyor",
+    "ready": "GeoIP veritabanı var"
+  },
+  "intel": {
+    "note": "Tehdit istihbaratı",
+    "unavailable": "Kullanılamıyor. İtibar atanmaz.",
+    "configured": "Sağlayıcı yapılandırıldı."
+  },
+  "email": {
+    "label": "E-posta uyarıları",
+    "enabled": "Açık",
+    "disabled": "Kapalı"
+  },
+  "charts": {
+    "trafficTitle": "Zaman içinde trafik",
+    "trafficHint": "Yakalama boyunca gözlenen paket etkinliği.",
+    "rateTitle": "Paket / saniye",
+    "rateHint": "Her gözlenen zaman dilimindeki paket yoğunluğu.",
+    "rateUnavailable": "Hız hesaplanamıyor",
+    "rateUnavailableHint": "Bu yakalamanın ölçülebilir bir zaman aralığı yok; saniye başına paket gösterilmiyor.",
+    "protocolTitle": "Protokol dağılımı",
+    "protocolHint": "Bu analizin döndürdüğü protokol paket sayıları.",
+    "bytesTitle": "Trafik hacmi",
+    "bytesHint": "Her zaman diliminde gözlenen baytlar.",
+    "offset": "Ofset {seconds}",
+    "seconds": "{value} sn",
+    "minutes": "{minutes} dk {seconds} sn",
+    "packets": "Paket",
+    "bytes": "Bayt",
+    "rate": "Paket/sn",
+    "protocol": "Protokol",
+    "count": "Sayı"
+  },
+  "learn": {
+    "title": "Bu sözcükler ne demek",
+    "what": "Bu nedir?",
+    "why": "Neden önemli?",
+    "observed": "CyberTrace ne gözledi?",
+    "rule": "Tespit kuralı",
+    "verify": "Wireshark'ta nasıl doğrulanır",
+    "confidence": "Güven, ölçülen kanıttan hesaplanır. Şiddet değildir.",
+    "severity": "Şiddet, bu dedektör için sabit politikadan gelir. Güven değildir.",
+    "concepts": {
+      "pcap": {
+        "name": "PCAP",
+        "text": "Yakalanmış paketlerin dosyasıdır. PCAPNG daha yeni biçimdir. CyberTrace ikisini de okur ve ham dosyayı saklamaz."
+      },
+      "packet": {
+        "name": "Paket",
+        "text": "Ağdaki tek bir çerçevedir. Uç noktalar, boyut, zaman damgası ve seçilmiş üst veri tutulur."
+      },
+      "flow": {
+        "name": "Akış",
+        "text": "Aynı kaynak, hedef, portlar ve taşıma protokolünü tek yönde paylaşan paketlerdir."
+      },
+      "host": {
+        "name": "Ana makine",
+        "text": "Yakalamada görülen bir IP adresidir. MAC, sayılar ve zaman damgaları tutulur."
+      },
+      "ioc": {
+        "name": "IOC",
+        "text": "Bir uyarıdan kopyalanan göstergedir: IP, alan adı, URL, port, MAC, User-Agent veya zaman damgası."
+      },
+      "alert": {
+        "name": "Uyarı",
+        "text": "Kanıt, güven, şiddet ve güncellenebilir durum içeren gruplanmış bulgudur."
+      },
+      "finding": {
+        "name": "Bulgu",
+        "text": "Bir dedektör sonucudur. Yalnızca kural gözlenen trafikle eşleşirse vardır."
+      },
+      "confidence": {
+        "name": "Güven",
+        "text": "Ölçümün eşiği ne kadar aştığını gösterir. Şiddeti ayrı politika belirler."
+      },
+      "severity": {
+        "name": "Şiddet",
+        "text": "Dedektörün sabit etki etiketidir: bilgi, düşük, orta, yüksek veya kritik. Rastgele seçilmez."
+      },
+      "rule": {
+        "name": "Tespit kuralı",
+        "text": "Adı olan kontrol, eşiği ve gözlenen değerleri yazan kanıt cümlesidir."
+      },
+      "tcp": {
+        "name": "TCP",
+        "text": "Bağlantı yönelimli taşımadır. Her akışta SYN ve ACK sayılır."
+      },
+      "udp": {
+        "name": "UDP",
+        "text": "Bağlantısız taşımadır. DNS çoğu zaman UDP 53 kullanır."
+      },
+      "dns": {
+        "name": "DNS",
+        "text": "Ad sorgusudur. Pakette ad varsa kaydedilir."
+      },
+      "http": {
+        "name": "HTTP",
+        "text": "Açık metin istek üst verisi: yöntem, host, yol ve User-Agent. Gövde saklanmaz."
+      },
+      "tls": {
+        "name": "TLS",
+        "text": "ClientHello ayrıştırılırsa sunucu adı yalnızca SNI eklentisi varsa tutulur."
+      },
+      "arp": {
+        "name": "ARP",
+        "text": "Yerel ağda adres çözümlemesidir. Çakışan IP-MAC eşlemesi şüpheli diye yazılır, saldırı kanıtı sayılmaz."
+      },
+      "beaconing": {
+        "name": "Beaconing",
+        "text": "Bir hedefe düzenli aralıklarla yinelenen bağlantılardır."
+      },
+      "portScan": {
+        "name": "Port taraması",
+        "text": "Yatay tarama birçok ana makinede bir porta bakar. Dikey tarama bir ana makinede birçok porta bakar."
+      },
+      "syn": {
+        "name": "SYN anomalisi",
+        "text": "Tamamlanmamış el sıkışmalarla bir hizmete giden çok sayıda SYN paketidir."
+      },
+      "dnsAnomaly": {
+        "name": "DNS anomalisi",
+        "text": "Uzun etiket, yüksek entropili etiket veya bir kaynaktan çok sayıda farklı addır."
+      },
+      "icmp": {
+        "name": "ICMP anomalisi",
+        "text": "Birçok hedefe echo isteği veya olağandışı büyük bir ICMP yüküdür."
+      }
+    }
+  },
+  "lessons": {
+    "generic": {
+      "what": "Bir dedektör bu yakalamadan bir ölçüm bildirdi.",
+      "why": "Kanıt, gözlenen değerleri yazar. Olayı vaka saymadan önce ana makine sahibiyle karşılaştırın.",
+      "verify": "Aynı yakalamayı Wireshark'ta açın ve kanıttaki IP, port ve protokole göre süzün."
+    },
+    "horizontal_port_scan": {
+      "what": "Bir kaynak, birçok ana makinede aynı porta SYN gönderdi.",
+      "why": "Bu, tek bir hizmeti arama olabilir. Onaylı bir envanter taraması da olabilir.",
+      "verify": "Wireshark süzgeci: tcp.flags.syn==1 && tcp.flags.ack==0 ve kaynak IP. Sonra o portun hedef listesine bakın."
+    },
+    "vertical_port_scan": {
+      "what": "Bir kaynak, bir ana makinede birçok porta SYN gönderdi.",
+      "why": "Kaynak, hangi hizmetlerin yanıt verdiğini yokluyor. Testin yetkili olup olmadığını doğrulayın.",
+      "verify": "Kaynak ve hedef IP ile tcp.flags.syn==1 && tcp.flags.ack==0 süzün ve hedef portları sayın."
+    },
+    "network_scan": {
+      "what": "Bir kaynak, birden fazla portta birçok ana makineye yalnızca SYN gönderdi.",
+      "why": "Bu, tek port taramasından daha geniştir. Tek port, yatay port taraması olarak kalır.",
+      "verify": "Kaynak IP ve ACK'siz SYN paketlerini süzün. Hedef IP ve port sütunlarını karşılaştırın."
+    },
+    "syn_burst": {
+      "what": "Bir ana makine ve porta, tamamlanmış el sıkışma olmadan çok sayıda SYN gitti.",
+      "why": "Yanıtsız SYN bir yoklama veya bağlantı sorunu olabilir.",
+      "verify": "Süzgeç: ip.addr==KAYNAK && tcp.dstport==PORT && tcp.flags.syn==1 && tcp.flags.ack==0."
+    },
+    "beaconing": {
+      "what": "Bir hedefe bağlantılar düzenli aralıkla yinelendi.",
+      "why": "Düzenli aralık planlı bir istemci olabilir. Otomatik sorgulama da olabilir.",
+      "verify": "TCP veya UDP akışını izleyin ve bağlantılar arasındaki zaman sütununu karşılaştırın."
+    },
+    "dns_anomaly": {
+      "what": "Bir DNS adı olağandışı uzun veya yüksek entropiliydi ya da bir kaynak çok sayıda farklı ad sordu.",
+      "why": "Kanıt, eşiği geçen uzunluğu, entropiyi veya ad sayısını yazar.",
+      "verify": "dns süzgecini kullanın ve kanıttaki sorgu adına bakın."
+    },
+    "icmp_anomaly": {
+      "what": "ICMP echo istekleri birçok hedefe gitti veya bir yük büyüktü.",
+      "why": "Kanıt, hedef sayısını veya yük boyutunu yazar.",
+      "verify": "icmp.type==8 süzün ve hedef listesini veya çerçeve uzunluğunu karşılaştırın."
+    },
+    "cleartext_telnet": {
+      "what": "TCP 23 portu görüldü. Yük okunmadı.",
+      "why": "Telnet açık metin uzaktan giriş portudur. Bulgu porttur, ele geçirilmiş kimlik bilgisi değildir.",
+      "verify": "tcp.port==23 süzün. Oturum içeriğinin saklanmasını beklemeyin."
+    },
+    "cleartext_ftp": {
+      "what": "TCP 21 portu görüldü. Yük okunmadı.",
+      "why": "FTP kontrol trafiği açık metindir. Bulgu porttur.",
+      "verify": "tcp.port==21 süzün."
+    },
+    "large_outbound": {
+      "what": "İç bir adres, genel bir adrese büyük bayt sayısı gönderdi.",
+      "why": "Kanıt, gözlenen bayt sayısını yazar. Büyük aktarım normal yedekleme veya beklenmeyen çıkış olabilir.",
+      "verify": "Wireshark Statistics > Conversations içinde kanıttaki çiftin baytına bakın."
+    },
+    "arp_multi_mac": {
+      "what": "Bir IP, birden fazla MAC tarafından duyuruldu.",
+      "why": "Bu şüpheli bir eşlemedir. Ağ kartı değişimi, yanlış yapılandırma veya sahtecilik olabilir. Saldırı kanıtı değildir.",
+      "verify": "arp süzün ve kanıttaki adres için gönderen IP ile gönderen MAC'i karşılaştırın."
+    },
+    "http_anomaly": {
+      "what": "Bir HTTP isteği ölçülen eşiği geçti: URI uzunluğu, yöntem, URI sayısı, dizin atlama işareti veya User-Agent uzunluğu ya da çeşitliliği.",
+      "why": "/admin gibi olağan bir yol tek başına bulgu değildir. Kanıt ölçümü adlandırır.",
+      "verify": "http süzün ve istek satırı ile User-Agent'a bakın. Gövde burada saklanmaz."
+    },
+    "custom_rule": {
+      "what": "Özel bir karşılaştırma, gözlenen bir akış alanıyla eşleşti.",
+      "why": "Kanıt kuralı, eşiği ve akıştan alınan değeri gösterir.",
+      "verify": "Wireshark'ta aynı IP, port ve protokolü bulun. Sayı veya baytı kanıtla karşılaştırın."
+    }
   }
 }

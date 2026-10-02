@@ -1,5 +1,5 @@
-import { t, initI18n, setLanguage, onLanguage, language, applyChrome, knownPhrase } from "./i18n.js?v=10";
-import { api } from "./api.js?v=10";
+import { t, initI18n, setLanguage, onLanguage, language, applyChrome, knownPhrase } from "./i18n.js?v=13";
+import { api } from "./api.js?v=12";
 
 const state = {
   route: "overview",
@@ -8,6 +8,7 @@ const state = {
   settings: null,
   socket: null,
   liveFeed: [],
+  liveSeries: [],
   ppsSample: null,
   mapAt: 0,
   chartMode: "packets",
@@ -161,6 +162,7 @@ async function bundle() {
     flowTruncated: Boolean(flows.truncated),
     alerts: alertItems,
     iocs: iocs.items || [],
+    threatIntel: iocs.threat_intel || { status: "unavailable", reputation: null },
     timeline: timeline.items || [],
   };
   state.cache.bundle = data;
@@ -175,23 +177,23 @@ function enrichHosts(hosts, flows, alerts) {
   return hosts.map((host) => {
     const related = flows.filter((flow) => flow.src_ip === host.ip || flow.dst_ip === host.ip);
     const hostAlerts = alerts.filter((alert) => alert.src_ip === host.ip || alert.dst_ip === host.ip);
-    const protocols = [...new Set(related.map((flow) => flow.protocol).filter(Boolean))];
+    const derivedProtocols = [...new Set(related.map((flow) => flow.protocol).filter(Boolean))];
     const times = related.flatMap((flow) => [flow.started_at, flow.ended_at].filter(Boolean));
-    const ports = new Set();
+    const derivedPorts = new Set();
     related.forEach((flow) => {
-      if (flow.src_ip === host.ip && flow.src_port != null) ports.add(flow.src_port);
-      if (flow.dst_ip === host.ip && flow.dst_port != null) ports.add(flow.dst_port);
+      if (flow.src_ip === host.ip && flow.src_port != null) derivedPorts.add(flow.src_port);
+      if (flow.dst_ip === host.ip && flow.dst_port != null) derivedPorts.add(flow.dst_port);
     });
     return {
       ...host,
-      packets: Number(host.packets_sent || 0) + Number(host.packets_received || 0),
+      packets: Number(host.packet_count ?? (Number(host.packets_sent || 0) + Number(host.packets_received || 0))),
       bytes: Number(host.bytes_sent || 0) + Number(host.bytes_received || 0),
-      protocols,
+      protocols: host.protocols && host.protocols.length ? host.protocols : derivedProtocols,
       connections: related.length,
       alertCount: hostAlerts.length,
-      first_seen: times.length ? times.reduce((left, right) => (left < right ? left : right)) : null,
-      last_seen: times.length ? times.reduce((left, right) => (left > right ? left : right)) : null,
-      ports: [...ports].sort((a, b) => a - b),
+      first_seen: host.first_seen || (times.length ? times.reduce((left, right) => (left < right ? left : right)) : null),
+      last_seen: host.last_seen || (times.length ? times.reduce((left, right) => (left > right ? left : right)) : null),
+      ports: host.ports && host.ports.length ? host.ports : [...derivedPorts].sort((a, b) => a - b),
       relatedFlows: related,
       relatedAlerts: hostAlerts,
     };
@@ -240,6 +242,126 @@ function skeleton() {
   return `<div class="skeleton-grid"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton tall"></div><div class="skeleton tall"></div></div>`;
 }
 
+function infoTip(concept) {
+  if (!concept) return "";
+  const name = t(`learn.concepts.${concept}.name`);
+  const text = t(`learn.concepts.${concept}.text`);
+  if (!text || text === `learn.concepts.${concept}.text`) return "";
+  return `<button type="button" class="info-tip" aria-label="${esc(name)}" data-tip="${esc(text)}"><span aria-hidden="true">ⓘ</span></button>`;
+}
+
+function conceptForDetector(id) {
+  return {
+    beaconing: "beaconing",
+    horizontal_port_scan: "portScan",
+    vertical_port_scan: "portScan",
+    network_scan: "portScan",
+    syn_burst: "syn",
+    dns_anomaly: "dnsAnomaly",
+    arp_multi_mac: "arp",
+    http_anomaly: "http",
+    icmp_anomaly: "icmp",
+  }[id] || "";
+}
+
+function conceptForProtocol(name) {
+  const key = String(name || "").toLowerCase();
+  return ["tcp", "udp", "dns", "http", "tls", "arp", "icmp"].includes(key) ? key : "";
+}
+
+function orderedBuckets(buckets) {
+  return (buckets || [])
+    .map((bucket) => ({
+      offset: Number(bucket.offset_seconds),
+      packets: Number(bucket.packets) || 0,
+      bytes: Number(bucket.bytes) || 0,
+    }))
+    .filter((bucket) => Number.isFinite(bucket.offset))
+    .sort((left, right) => left.offset - right.offset);
+}
+
+function sliceWidth(buckets) {
+  if (buckets.length < 2) return null;
+  const deltas = [];
+  for (let index = 1; index < buckets.length; index += 1) {
+    const delta = buckets[index].offset - buckets[index - 1].offset;
+    if (delta > 0.0005) deltas.push(delta);
+  }
+  if (!deltas.length) return null;
+  const width = Math.min(...deltas);
+  const aligned = deltas.every((delta) => {
+    const steps = Math.round(delta / width);
+    return steps >= 1 && Math.abs(delta - steps * width) <= Math.max(0.02, width * 0.08);
+  });
+  return aligned && width > 0 ? width : null;
+}
+
+function formatOffset(seconds) {
+  if (!Number.isFinite(seconds)) return t("common.notObserved");
+  if (Math.abs(seconds) >= 60) {
+    return t("charts.minutes", { minutes: Math.floor(seconds / 60), seconds: Math.round(seconds % 60) });
+  }
+  const digits = Math.abs(seconds) >= 10 ? 0 : 1;
+  return t("charts.seconds", { value: seconds.toFixed(digits) });
+}
+
+function chartPointText(row, key) {
+  const parts = [
+    t("charts.offset", { seconds: formatOffset(row.offset) }),
+    `${t("charts.packets")}: ${row.packets}`,
+    `${t("charts.bytes")}: ${formatBytes(row.bytes)}`,
+  ];
+  if (key === "rate" && Number.isFinite(row.rate)) parts.push(`${t("charts.rate")}: ${row.rate.toFixed(2)}`);
+  return parts.join("\n");
+}
+
+function columnChart(rows, key, series) {
+  if (!rows.length) return emptyBlock(t("empty.noPackets"), t("empty.noPacketsHint"));
+  const width = 640;
+  const height = 220;
+  const padL = 56;
+  const padR = 12;
+  const padT = 12;
+  const padB = 28;
+  const max = Math.max(...rows.map((row) => Number(row[key]) || 0), 1);
+  const plotW = width - padL - padR;
+  const plotH = height - padT - padB;
+  const gap = rows.length > 18 ? 2 : 6;
+  const barW = Math.max(2, (plotW - gap * Math.max(rows.length - 1, 0)) / rows.length);
+  const grids = [0, 0.5, 1].map((ratio) => {
+    const y = padT + plotH - ratio * plotH;
+    const value = ratio * max;
+    const label = key === "bytes" ? formatBytes(value) : key === "rate" ? value.toFixed(1) : String(Math.round(value));
+    return `<line class="grid" x1="${padL}" y1="${y.toFixed(1)}" x2="${width - padR}" y2="${y.toFixed(1)}"></line><text class="axis" x="${padL - 6}" y="${(y + 4).toFixed(1)}" text-anchor="end">${esc(label)}</text>`;
+  }).join("");
+  const bars = rows.map((row, index) => {
+    const value = Number(row[key]) || 0;
+    const barHeight = value > 0 ? Math.max(2, (value / max) * plotH) : 0;
+    const x = padL + index * (barW + gap);
+    const y = padT + plotH - barHeight;
+    return `<rect class="bar ${esc(series)}" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${barHeight.toFixed(1)}" rx="2" tabindex="0" data-chart-tip="${esc(chartPointText(row, key))}"></rect>`;
+  }).join("");
+  const axis = `<text class="axis" x="${padL}" y="${height - 8}">${esc(formatOffset(rows[0].offset))}</text><text class="axis" x="${width - padR}" y="${height - 8}" text-anchor="end">${esc(formatOffset(rows[rows.length - 1].offset))}</text>`;
+  const legend = key === "bytes" ? "bytes" : key === "rate" ? "rate" : "packets";
+  return `<svg class="chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(t(`charts.${legend}`))}">${grids}${bars}${axis}</svg><p class="chart-legend"><span><i class="${esc(series)}"></i>${esc(t(`charts.${legend}`))}</span></p>`;
+}
+
+function pcapCharts(buckets, protocols) {
+  const rows = orderedBuckets(buckets);
+  const width = sliceWidth(rows);
+  const rated = width == null ? null : rows.map((row) => ({ ...row, rate: row.packets / width }));
+  return `<div class="chart-grid">
+    ${chartCard(t("charts.trafficTitle"), t("charts.trafficHint"), columnChart(rows, "packets", "packets"), "packet")}
+    ${chartCard(t("charts.rateTitle"), t("charts.rateHint"), rated ? columnChart(rated, "rate", "rate") : emptyBlock(t("charts.rateUnavailable"), t("charts.rateUnavailableHint")))}
+    ${chartCard(t("charts.protocolTitle"), t("charts.protocolHint"), protocolBars(protocols))}
+    ${chartCard(t("charts.bytesTitle"), t("charts.bytesHint"), columnChart(rows, "bytes", "bytes"))}
+  </div>`;
+}
+
+function chartCard(title, hint, body, concept) {
+  return `<article class="panel chart-card"><h3 class="term-line"><span>${esc(title)}</span>${infoTip(concept)}</h3><p class="chart-note">${esc(hint)}</p>${body}</article>`;
+}
+
 function sparkline(buckets) {
   if (!buckets || buckets.length < 2) return "";
   const values = buckets.map((bucket) => Number(bucket.packets) || 0);
@@ -269,34 +391,23 @@ function chartControls(protocols) {
 
 function trafficVisual(buckets, protocols, mode) {
   if (mode !== "packets" && mode !== "bytes") return protocolBars(protocols, mode);
-  if (!buckets.length) return emptyBlock(t("empty.noPackets"), t("empty.noPacketsHint"));
-  const key = mode === "bytes" ? "bytes" : "packets";
-  const width = 720;
-  const height = 220;
-  const max = Math.max(...buckets.map((bucket) => Number(bucket[key]) || 0), 1);
-  const gap = 12;
-  const barWidth = Math.max(8, (width - gap * buckets.length) / buckets.length);
-  const bars = buckets.map((bucket, index) => {
-    const value = Number(bucket[key]) || 0;
-    const barHeight = Math.max(2, (value / max) * (height - 28));
-    const x = index * (barWidth + gap);
-    const y = height - 18 - barHeight;
-    const label = t("overview.bucket", { offset: bucket.offset_seconds, packets: bucket.packets, bytes: bucket.bytes });
-    return `<rect x="${x}" y="${y}" width="${barWidth}" height="${barHeight}" rx="5"><title>${esc(label)}</title></rect>`;
-  }).join("");
-  return `<svg class="chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(t("overview.series", { mode }))}"><defs><linearGradient id="bar" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#3ee0ff"/><stop offset="1" stop-color="#5b8cff"/></linearGradient></defs>${bars}</svg>`;
+  const rows = orderedBuckets(buckets);
+  return columnChart(rows, mode === "bytes" ? "bytes" : "packets", mode === "bytes" ? "bytes" : "packets");
 }
 
 function protocolBars(protocols, highlight) {
   const entries = Object.entries(protocols || {});
   if (!entries.length) return emptyBlock(t("empty.noProtocols"), t("empty.noProtocolsHint"));
   const max = Math.max(...entries.map(([, count]) => Number(count) || 0), 1);
-  return `<div class="proto-list">${entries.map(([name, count]) => `
-    <div class="proto-row ${name === highlight ? "on" : ""}">
-      <span>${esc(name)}</span>
-      <i><b style="width:${Math.round((Number(count) / max) * 100)}%"></b></i>
+  return `<div class="proto-list">${entries.map(([name, count]) => {
+    const kind = conceptForProtocol(name) || "other";
+    const tip = `${t("charts.protocol")}: ${name}\n${t("charts.count")}: ${count}`;
+    return `<div class="proto-row ${name === highlight ? "on" : ""}" tabindex="0" data-chart-tip="${esc(tip)}">
+      <span class="term-line"><i class="swatch ${esc(kind)}"></i>${esc(name)}${infoTip(conceptForProtocol(name))}</span>
+      <i class="track"><b class="${esc(kind)}" style="width:${Math.round((Number(count) / max) * 100)}%"></b></i>
       <strong>${esc(count)}</strong>
-    </div>`).join("")}</div><p class="quiet">${esc(t("overview.protocolNote"))}</p>`;
+    </div>`;
+  }).join("")}</div><p class="quiet">${esc(t("overview.protocolNote"))}</p>`;
 }
 
 function topologyMarkup(topology, alerts) {
@@ -372,9 +483,9 @@ async function openAlert(id) {
   openDrawer(alert.name || t("alert.title"), `
     <div class="actions">${badge(alert.severity)} <span>${esc(formatConfidence(alert.confidence))}</span></div>
     <div class="facts">
-      <div><span>${esc(t("alert.detector"))}</span><strong>${esc(alert.detector_id || t("common.notObserved"))}</strong></div>
-      <div><span>${esc(t("alert.severity"))}</span><strong>${esc(alert.severity ? (t(`severity.${alert.severity}`) === `severity.${alert.severity}` ? alert.severity : t(`severity.${alert.severity}`)) : t("common.notObserved"))}</strong></div>
-      <div><span>${esc(t("alert.confidence"))}</span><strong>${Number.isFinite(confidence) ? `<span class="meter"><i style="width:${Math.round(confidence * 100)}%"></i></span>${esc(formatConfidence(confidence))}` : esc(t("common.notObserved"))}</strong></div>
+      <div><span class="with-tip">${esc(t("alert.detector"))}${infoTip(conceptForDetector(alert.detector_id) || "finding")}</span><strong>${esc(alert.detector_id || t("common.notObserved"))}</strong></div>
+      <div><span class="with-tip">${esc(t("alert.severity"))}${infoTip("severity")}</span><strong>${esc(alert.severity ? (t(`severity.${alert.severity}`) === `severity.${alert.severity}` ? alert.severity : t(`severity.${alert.severity}`)) : t("common.notObserved"))}</strong></div>
+      <div><span class="with-tip">${esc(t("alert.confidence"))}${infoTip("confidence")}</span><strong>${Number.isFinite(confidence) ? `<span class="meter"><i style="width:${Math.round(confidence * 100)}%"></i></span>${esc(formatConfidence(confidence))}` : esc(t("common.notObserved"))}</strong></div>
       <div><span>${esc(t("alert.protocol"))}</span><strong>${esc(alert.protocol || t("common.notObserved"))}</strong></div>
       <div><span>${esc(t("alert.firstSeen"))}</span><strong>${formatTime(first)}</strong></div>
       <div><span>${esc(t("alert.lastSeen"))}</span><strong>${last ? formatTime(last) : esc(t("common.notObserved"))}</strong></div>
@@ -382,47 +493,91 @@ async function openAlert(id) {
       <div><span>${esc(t("alert.sourceMac"))}</span><strong>${esc(mac || t("common.notObserved"))}</strong></div>
       <div><span>${esc(t("alert.destIp"))}</span><strong>${esc(alert.dst_ip || t("common.notObserved"))}</strong></div>
       <div><span>${esc(t("alert.destPort"))}</span><strong>${alert.dst_port == null ? esc(t("common.notObserved")) : esc(alert.dst_port)}</strong></div>
+      <div><span>${esc(t("alert.status"))}</span><strong>${esc(t(`alert.statuses.${alert.status || "open"}`))}</strong></div>
     </div>
+    <h2>${esc(t("learn.what"))}</h2>
+    <p>${esc(lesson(alert.detector_id, "what"))}</p>
+    <h2>${esc(t("learn.why"))}</h2>
+    <p>${esc(lesson(alert.detector_id, "why"))}</p>
+    <h2>${esc(t("learn.observed"))}</h2>
+    <p>${esc(alert.evidence || t("alert.noEvidence"))}</p>
+    <h2>${esc(t("learn.rule"))}</h2>
+    <p>${esc(alert.name || t("common.notObserved"))} (${esc(alert.detector_id || t("alert.unknownRule"))})</p>
     <h2>${esc(t("alert.evidence"))}</h2>
-    <ol class="chain">
-      <li><span>${esc(t("alert.observed"))}</span><p>${esc(alert.evidence || t("alert.noEvidence"))}</p></li>
-      <li><span>${esc(t("alert.rule"))}</span><p>${esc(alert.name || t("common.notObserved"))} (${esc(alert.detector_id || t("alert.unknownRule"))})</p></li>
-      <li><span>${esc(t("alert.finding"))}</span><p>${esc(t("alert.findingText", { severity: alert.severity ? t(`severity.${alert.severity}`) : t("alert.unspecified"), confidence: formatConfidence(alert.confidence) }))}</p></li>
-    </ol>
+    <p>${esc(alert.evidence || t("alert.noEvidence"))}</p>
+    <h2>${esc(t("alert.confidence"))}</h2>
+    <p>${esc(t("learn.confidence"))} ${esc(formatConfidence(alert.confidence))}</p>
+    <h2>${esc(t("alert.severity"))}</h2>
+    <p>${esc(t("learn.severity"))} ${esc(alert.severity ? t(`severity.${alert.severity}`) : t("common.notObserved"))}</p>
     <h2>${esc(t("alert.action"))}</h2>
-    <p>${esc(alert.recommended_action || t("alert.noAction"))}</p>`);
+    <p>${esc(alert.recommended_action || t("alert.noAction"))}</p>
+    <h2>${esc(t("learn.verify"))}</h2>
+    <p>${esc(lesson(alert.detector_id, "verify"))}</p>
+    <h2>${esc(t("alert.lifecycle"))}</h2>
+    <label class="field">${esc(t("alert.status"))}
+      <select id="alert-status">
+        ${["open", "acknowledged", "resolved", "dismissed"].map((status) => `<option value="${status}" ${alert.status === status ? "selected" : ""}>${esc(t(`alert.statuses.${status}`))}</option>`).join("")}
+      </select>
+    </label>
+    <label class="field">${esc(t("alert.note"))}<textarea id="alert-note" maxlength="2000">${esc(alert.note || "")}</textarea></label>
+    <button class="button primary" id="alert-save" type="button">${esc(t("alert.save"))}</button>
+    <p id="alert-save-message" class="quiet"></p>`);
+  document.getElementById("alert-save").addEventListener("click", async () => {
+    const message = document.getElementById("alert-save-message");
+    try {
+      const updated = await api(`/api/alerts/${encodeURIComponent(alert.id)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status: document.getElementById("alert-status").value,
+          note: document.getElementById("alert-note").value,
+        }),
+      });
+      alert.status = updated.status;
+      alert.note = updated.note;
+      state.cache.bundle = null;
+      if (message) message.textContent = t("alert.saved");
+    } catch (error) {
+      if (message) message.textContent = error.message;
+    }
+  });
 }
 
 async function openHost(ip) {
-  const data = await bundle();
-  if (!data) return;
-  const host = data.hosts.find((item) => item.ip === ip);
-  if (!host) return;
-  const alertIds = new Set(host.relatedAlerts.map((alert) => String(alert.id)));
-  const domains = data.iocs.filter((item) => item.indicator_type === "domain" && alertIds.has(String(item.alert_id)));
-  const events = data.timeline.filter((item) => alertIds.has(String(item.alert_id)));
-  const level = hostSeverity(ip, host.relatedAlerts);
+  if (!state.sessionId) return;
+  const host = await api(`/api/analyses/${encodeURIComponent(state.sessionId)}/hosts/${encodeURIComponent(ip)}`);
+  const alerts = host.alerts || [];
+  const domains = host.domains || [];
+  const events = host.timeline || [];
+  const connections = host.connections || [];
+  const level = hostSeverity(ip, alerts);
+  const geo = host.geoip || { status: "unavailable", country: null, message: "GeoIP unavailable" };
+  const geoText = geo.status === "observed" || geo.status === "local"
+    ? geo.country
+    : (geo.message || t("geoip.unavailable"));
   openDrawer(host.ip, `
     <p class="quiet">${esc(roleLabel(host.role))} ${level ? `· ${esc(t(`severity.${level}`))}` : ""}</p>
     <div class="facts">
-      <div><span>${esc(t("hosts.mac"))}</span><strong>${esc((host.macs || []).join(", ") || t("common.notObserved"))}</strong></div>
+      <div><span>${esc(t("hosts.mac"))}</span><strong>${esc((host.macs || []).join(", ") || host.mac || t("common.notObserved"))}</strong></div>
+      <div><span>${esc(t("hosts.packets"))}</span><strong>${esc(host.packet_count ?? t("common.notObserved"))}</strong></div>
       <div><span>${esc(t("hosts.packetsSent"))}</span><strong>${esc(host.packets_sent)}</strong></div>
       <div><span>${esc(t("hosts.packetsReceived"))}</span><strong>${esc(host.packets_received)}</strong></div>
       <div><span>${esc(t("hosts.bytesSent"))}</span><strong>${formatBytes(host.bytes_sent)}</strong></div>
       <div><span>${esc(t("hosts.bytesReceived"))}</span><strong>${formatBytes(host.bytes_received)}</strong></div>
       <div><span>${esc(t("hosts.firstSeen"))}</span><strong>${formatTime(host.first_seen)}</strong></div>
       <div><span>${esc(t("hosts.lastSeen"))}</span><strong>${formatTime(host.last_seen)}</strong></div>
+      <div><span>${esc(t("geoip.label"))}</span><strong>${esc(geoText || t("geoip.unavailable"))}</strong></div>
     </div>
     <h2>${esc(t("hosts.ports"))}</h2>
-    ${host.ports.length ? `<p>${host.ports.map((port) => esc(port)).join(", ")}</p>` : emptyBlock(t("empty.noPorts"), t("empty.noPortsHint"))}
+    ${(host.ports || []).length ? `<p>${host.ports.map((port) => esc(port)).join(", ")}</p>` : emptyBlock(t("empty.noPorts"), t("empty.noPortsHint"))}
     <h2>${esc(t("hosts.protocolsTitle"))}</h2>
-    <p>${host.protocols.length ? esc(host.protocols.join(", ")) : esc(t("common.notObserved"))}</p>
+    <p>${(host.protocols || []).length ? esc(host.protocols.join(", ")) : esc(t("common.notObserved"))}</p>
     <h2>${esc(t("hosts.domains"))}</h2>
-    ${domains.length ? `<ul>${domains.map((item) => `<li>${esc(item.value)}</li>`).join("")}</ul>` : `<p>${esc(t("empty.noDomains"))}</p>`}
+    ${domains.length ? `<ul>${domains.map((item) => `<li>${esc(item)}</li>`).join("")}</ul>` : `<p>${esc(t("empty.noDomains"))}</p>`}
     <h2>${esc(t("hosts.connectionsTitle"))}</h2>
-    ${host.relatedFlows.length ? tableHtml([t("hosts.source"), t("hosts.destination"), t("hosts.protocol"), t("hosts.packets"), t("hosts.bytes")], host.relatedFlows.slice(0, 12).map((flow) => [endpointText(flow.src_ip, flow.src_port), endpointText(flow.dst_ip, flow.dst_port), flow.protocol, flow.packet_count, formatBytes(flow.byte_count)])) : emptyBlock(t("empty.noConnections"), t("empty.noHostFlows"))}
+    ${connections.length ? tableHtml([t("hosts.source"), t("hosts.destination"), t("hosts.protocol"), t("hosts.packets"), t("hosts.bytes")], connections.slice(0, 12).map((flow) => [endpointText(flow.src_ip, flow.src_port), endpointText(flow.dst_ip, flow.dst_port), flow.protocol, flow.packet_count, formatBytes(flow.byte_count)])) : emptyBlock(t("empty.noConnections"), t("empty.noHostFlows"))}
     <h2>${esc(t("hosts.alertsTitle"))}</h2>
-    ${host.relatedAlerts.length ? `<div class="stack">${host.relatedAlerts.map((alert) => `<button class="button" type="button" data-alert-id="${alert.id}">${badge(alert.severity)} ${esc(alert.name)}</button>`).join("")}</div>` : emptyBlock(t("empty.noHostEvents"), t("empty.noHostFindings"))}
+    ${alerts.length ? `<div class="stack">${alerts.map((item) => `<button class="button" type="button" data-alert-id="${item.id}">${badge(item.severity)} ${esc(item.name)}</button>`).join("")}</div>` : emptyBlock(t("empty.noHostEvents"), t("empty.noHostFindings"))}
     <h2>${esc(t("hosts.timelineTitle"))}</h2>
     ${events.length ? `<ol class="timeline">${events.map((item) => `<li class="${esc(item.severity || "")}"><div class="meta">${formatTime(item.occurred_at)} · ${esc(eventLabel(item.event_type))}</div><div>${esc(knownPhrase(item.summary))}</div></li>`).join("")}</ol>` : `<p>${esc(t("empty.noHostTimeline"))}</p>`}`);
 }
@@ -470,7 +625,7 @@ async function renderOverview() {
         <div id="traffic-chart">${trafficVisual(data.traffic || [], protocols, state.chartMode)}</div>
       </article>
       <article class="panel">
-        <h2>${esc(t("overview.severity"))}</h2>
+        <h2 class="term-line"><span>${esc(t("overview.severity"))}</span>${infoTip("severity")}</h2>
         ${severityRows(data.severity || {})}
       </article>
     </section>
@@ -483,7 +638,8 @@ async function renderOverview() {
         <h2>${esc(t("overview.events"))}</h2>
         <div id="event-list">${alertRows(state.cache.alerts)}</div>
       </article>
-    </section>`;
+    </section>
+    `;
   document.querySelectorAll("[data-count]").forEach((node) => countUp(node, node.dataset.count));
   const note = document.getElementById("map-note");
   const shown = (data.topology && data.topology.nodes || []).length;
@@ -495,7 +651,7 @@ function severityRows(severity) {
   const max = Math.max(1, ...names.map((name) => Number(severity[name]) || 0));
   return `<div class="proto-list">${names.map((name) => {
     const count = Number(severity[name]) || 0;
-    return `<div class="proto-row"><span>${esc(t(`severity.${name}`))}</span><i><b style="width:${Math.round((count / max) * 100)}%"></b></i><strong>${count}</strong></div>`;
+    return `<div class="proto-row"><span>${badge(name)}</span><i class="track"><b style="width:${Math.round((count / max) * 100)}%"></b></i><strong>${count}</strong></div>`;
   }).join("")}</div>`;
 }
 
@@ -528,23 +684,23 @@ function alertRows(items) {
       <td>${formatTime(alert.observed_at)}</td>
     </tr>`).join("");
   return `<div class="table-wrap"><table><thead><tr>
-    ${header("alerts", "severity", t("alerts.severity"))}${header("alerts", "confidence", t("alerts.confidence"))}${header("alerts", "name", t("alerts.detector"))}${header("alerts", "src_ip", t("alerts.source"))}${header("alerts", "dst_ip", t("alerts.destination"))}${header("alerts", "protocol", t("alerts.protocol"))}${header("alerts", "observed_at", t("alerts.time"))}
+    ${header("alerts", "severity", t("alerts.severity"), "severity")}${header("alerts", "confidence", t("alerts.confidence"), "confidence")}${header("alerts", "name", t("alerts.detector"), "finding")}${header("alerts", "src_ip", t("alerts.source"))}${header("alerts", "dst_ip", t("alerts.destination"))}${header("alerts", "protocol", t("alerts.protocol"))}${header("alerts", "observed_at", t("alerts.time"))}
   </tr></thead><tbody>${rows}</tbody></table></div>${pager("alerts", page.page, page.pages)}`;
 }
 
-function header(table, key, label) {
-  return `<th data-sort="${esc(key)}" data-table="${esc(table)}">${esc(label)}</th>`;
+function header(table, key, label, concept) {
+  return `<th data-sort="${esc(key)}" data-table="${esc(table)}"><span class="th-label">${esc(label)}${infoTip(concept)}</span></th>`;
 }
 
 async function renderAlerts() {
   if (!state.sessionId) {
-    document.getElementById("view").innerHTML = page(t("alerts.title"), t("alerts.lead"), emptyBlock(t("empty.noAnalysis"), t("empty.upload")));
+    document.getElementById("view").innerHTML = page(t("alerts.title"), t("alerts.lead"), emptyBlock(t("empty.noAnalysis"), t("empty.upload")), "alert");
     return;
   }
   const data = await bundle();
   document.getElementById("view").innerHTML = page(t("alerts.title"), t("alerts.lead"), `
     <div class="search"><input id="alert-search" type="search" placeholder="${esc(t("alerts.search"))}" value="${esc(state.filters.alerts)}"></div>
-    <div id="alert-table">${alertRows(data.alerts)}</div>`);
+    <div id="alert-table">${alertRows(data.alerts)}</div>`, "alert");
   document.getElementById("alert-search").addEventListener("input", (event) => {
     state.filters.alerts = event.target.value;
     state.pages.alerts = 0;
@@ -552,19 +708,19 @@ async function renderAlerts() {
   });
 }
 
-function page(title, detail, body) {
-  return `<div class="page-head"><div><h1>${esc(title)}</h1><p>${esc(detail)}</p></div></div><section class="panel">${body}</section>`;
+function page(title, detail, body, concept) {
+  return `<div class="page-head"><div><h1 class="term-line"><span>${esc(title)}</span>${infoTip(concept)}</h1><p>${esc(detail)}</p></div></div><section class="panel">${body}</section>`;
 }
 
 async function renderHosts() {
   if (!state.sessionId) {
-    document.getElementById("view").innerHTML = page(t("hosts.title"), t("hosts.lead"), emptyBlock(t("empty.noAnalysis"), t("empty.upload")));
+    document.getElementById("view").innerHTML = page(t("hosts.title"), t("hosts.lead"), emptyBlock(t("empty.noAnalysis"), t("empty.upload")), "host");
     return;
   }
   const data = await bundle();
   document.getElementById("view").innerHTML = page(t("hosts.title"), t("hosts.lead"), `
     <div class="search"><input id="host-search" type="search" placeholder="${esc(t("hosts.search"))}" value="${esc(state.filters.hosts)}"></div>
-    <div id="host-table"></div>`);
+    <div id="host-table"></div>`, "host");
   paintHosts(data.hosts);
   document.getElementById("host-search").addEventListener("input", (event) => {
     state.filters.hosts = event.target.value;
@@ -593,7 +749,7 @@ function paintHosts(hosts) {
     <td>${esc((host.macs || []).join(", ") || t("common.notObserved"))}</td>
     <td>${esc(host.packets_sent)} ${esc(t("common.sent"))}<div class="meta">${esc(host.packets_received)} ${esc(t("common.received"))}</div></td>
     <td>${formatBytes(host.bytes_sent)} ${esc(t("common.sent"))}<div class="meta">${formatBytes(host.bytes_received)} ${esc(t("common.received"))}</div></td>
-    <td>${esc(host.protocols.join(", ") || t("common.notObserved"))}</td>
+    <td>${esc((host.protocols || []).join(", ") || t("common.notObserved"))}</td>
     <td>${esc(host.connections)}</td>
     <td>${esc(host.alertCount)}</td>
     <td>${formatTime(host.first_seen)}</td>
@@ -603,12 +759,13 @@ function paintHosts(hosts) {
 
 async function renderIocs() {
   if (!state.sessionId) {
-    document.getElementById("view").innerHTML = page(t("iocs.title"), t("iocs.lead"), emptyBlock(t("empty.noAnalysis"), t("empty.upload")));
+    document.getElementById("view").innerHTML = page(t("iocs.title"), t("iocs.lead"), emptyBlock(t("empty.noAnalysis"), t("empty.upload")), "ioc");
     return;
   }
   const data = await bundle();
   const types = [...new Set(data.iocs.map((item) => item.indicator_type))];
   document.getElementById("view").innerHTML = page(t("iocs.title"), t("iocs.lead"), `
+    <p class="quiet">${esc(t("intel.note"))} ${esc(intelText(data.threatIntel))}</p>
     <div class="filters">
       <input id="ioc-search" type="search" placeholder="${esc(t("iocs.search"))}" value="${esc(state.filters.iocs)}">
       <div class="segment" id="ioc-types">
@@ -616,7 +773,7 @@ async function renderIocs() {
         ${types.map((type) => `<button type="button" data-ioc-type="${esc(type)}" aria-pressed="${state.filters.iocType === type ? "true" : "false"}">${esc(typeLabel(type))}</button>`).join("")}
       </div>
     </div>
-    <div id="ioc-table"></div>`);
+    <div id="ioc-table"></div>`, "ioc");
   paintIocs(data);
   document.getElementById("ioc-search").addEventListener("input", (event) => {
     state.filters.iocs = event.target.value;
@@ -772,14 +929,44 @@ async function renderSettings() {
       <dt>${esc(t("settings.maxDuration"))}</dt><dd>${esc(settings.live_max_duration)} ${esc(t("common.seconds"))}</dd>
       <dt>${esc(t("settings.capture"))}</dt><dd>${settings.capture_available ? esc(t("settings.available")) : esc(t("settings.unavailable"))}</dd>
     </dl>
-    <p class="${settings.capture_available ? "quiet" : "callout"}">${esc(knownPhrase(settings.capture_message || ""))}</p>`);
+    <p class="${settings.capture_available ? "quiet" : "callout"}">${esc(knownPhrase(settings.capture_message || ""))}</p>
+    <h2>${esc(t("theme.title"))}</h2>
+    <label class="field">${esc(t("common.theme"))}
+      <select id="settings-theme">
+        <option value="dark">${esc(t("theme.dark"))}</option>
+        <option value="light">${esc(t("theme.light"))}</option>
+      </select>
+    </label>
+    <h2>${esc(t("rules.title"))}</h2>
+    <p>${esc(t("rules.lead"))}</p>
+    <div id="rule-list"></div>
+    <h2>${esc(t("rules.custom"))}</h2>
+    <form id="custom-rule" class="stack">
+      <label class="field">${esc(t("rules.name"))}<input name="name" required maxlength="255"></label>
+      <label class="field">${esc(t("rules.field"))}
+        <select name="field">${["source_ip", "destination_ip", "destination_port", "protocol", "packet_count", "byte_count"].map((field) => `<option value="${field}">${esc(t(`rules.fields.${field}`))}</option>`).join("")}</select>
+      </label>
+      <label class="field">${esc(t("rules.operator"))}
+        <select name="operator">${["equals", "not_equals", "greater_than", "less_than", "contains"].map((operator) => `<option value="${operator}">${esc(t(`rules.operators.${operator}`))}</option>`).join("")}</select>
+      </label>
+      <label class="field">${esc(t("rules.value"))}<input name="value" required maxlength="255"></label>
+      <label class="field">${esc(t("rules.description"))}<input name="description" maxlength="1000"></label>
+      <button class="button primary" type="submit">${esc(t("rules.create"))}</button>
+      <p id="rule-message" class="quiet"></p>
+    </form>
+    <div id="custom-rule-list"></div>`);
   document.getElementById("settings-lang").value = language();
   document.getElementById("settings-lang").addEventListener("change", (event) => setLanguage(event.target.value));
+  const themeSelect = document.getElementById("settings-theme");
+  themeSelect.value = document.documentElement.dataset.theme || "dark";
+  themeSelect.addEventListener("change", (event) => applyTheme(event.target.value));
+  loadRules();
+  document.getElementById("custom-rule").addEventListener("submit", saveCustomRule);
 }
 
 async function renderPcap() {
   document.getElementById("view").innerHTML = `
-    <div class="page-head"><div><h1>${esc(t("pcap.title"))}</h1><p>${esc(t("pcap.lead"))}</p></div></div>
+    <div class="page-head"><div><h1 class="term-line"><span>${esc(t("pcap.title"))}</span>${infoTip("pcap")}</h1><p>${esc(t("pcap.lead"))}</p></div></div>
     <section class="panel drop" id="drop">
       <h2>${esc(t("pcap.dropTitle"))}</h2>
       <p>${esc(t("pcap.dropHint"))}</p>
@@ -839,17 +1026,18 @@ function paintPcapTab(data) {
     button.setAttribute("aria-selected", button.dataset.pcapTab === state.pcapTab ? "true" : "false");
   });
   if (state.pcapTab === "traffic") {
-    panel.innerHTML = `<div class="panel-head"><h2>${esc(t("pcap.traffic"))}</h2>${chartControls(data.detail.protocol_counts || {})}</div><div id="traffic-chart">${trafficVisual(data.detail.traffic || [], data.detail.protocol_counts || {}, state.chartMode)}</div>`;
+    panel.innerHTML = pcapCharts(data.detail.traffic || [], data.detail.protocol_counts || {});
   } else if (state.pcapTab === "hosts") {
-    panel.innerHTML = `<div id="host-table"></div>`;
+    panel.innerHTML = `<h2 class="term-line"><span>${esc(t("pcap.tabs.hosts"))}</span>${infoTip("host")}</h2><div id="host-table"></div>`;
     paintHosts(data.hosts);
   } else if (state.pcapTab === "connections") {
     const note = data.flowTruncated ? `<p class="quiet">${esc(t("pcap.showing", { shown: data.flows.length, total: data.flowTotal }))}</p>` : "";
-    panel.innerHTML = data.flows.length ? `${note}${tableHtml([t("hosts.source"), t("hosts.destination"), t("hosts.protocol"), t("hosts.packets"), t("hosts.bytes"), t("hosts.started")], data.flows.map((flow) => [endpointText(flow.src_ip, flow.src_port), endpointText(flow.dst_ip, flow.dst_port), flow.protocol || t("common.notObserved"), flow.packet_count, formatBytes(flow.byte_count), formatTime(flow.started_at)]))}` : emptyBlock(t("empty.noConnections"), t("empty.noFlows"));
+    const heading = `<h2 class="term-line"><span>${esc(t("pcap.tabs.connections"))}</span>${infoTip("flow")}</h2>`;
+    panel.innerHTML = data.flows.length ? `${heading}${note}${tableHtml([t("hosts.source"), t("hosts.destination"), t("hosts.protocol"), t("hosts.packets"), t("hosts.bytes"), t("hosts.started")], data.flows.map((flow) => [endpointText(flow.src_ip, flow.src_port), endpointText(flow.dst_ip, flow.dst_port), flow.protocol || t("common.notObserved"), flow.packet_count, formatBytes(flow.byte_count), formatTime(flow.started_at)]))}` : `${heading}${emptyBlock(t("empty.noConnections"), t("empty.noFlows"))}`;
   } else if (state.pcapTab === "alerts") {
-    panel.innerHTML = alertRows(data.alerts);
+    panel.innerHTML = `<h2 class="term-line"><span>${esc(t("pcap.tabs.alerts"))}</span>${infoTip("alert")}</h2>${alertRows(data.alerts)}`;
   } else if (state.pcapTab === "iocs") {
-    panel.innerHTML = `<div id="ioc-table"></div>`;
+    panel.innerHTML = `<h2 class="term-line"><span>${esc(t("pcap.tabs.iocs"))}</span>${infoTip("ioc")}</h2><div id="ioc-table"></div>`;
     paintIocs(data);
   } else {
     panel.innerHTML = `<div id="timeline-list"></div>`;
@@ -930,6 +1118,7 @@ async function renderLive() {
   state.settings = settings;
   const maxDuration = Number(settings.live_max_duration) || 300;
   const defaultDuration = Number(settings.live_default_duration) || 60;
+  state.liveSeries = [];
   const options = (info.interfaces || []).map((item) => `<option value="${esc(item.name)}">${esc(item.description)}</option>`).join("");
   document.getElementById("view").innerHTML = `
     <div class="page-head">
@@ -950,6 +1139,8 @@ async function renderLive() {
       </article>
       <article class="panel">
         <div class="panel-head"><h2>${esc(t("live.activity"))}</h2><span class="quiet" id="live-caption"></span></div>
+        <h2>${esc(t("live.chart"))}</h2>
+        <div id="live-chart">${liveChart(state.liveSeries)}</div>
         <div class="metric-grid">
           ${metric(t("live.pps"), "rate-packets")}
           ${metric(t("live.packets"), "count-packets")}
@@ -1022,6 +1213,7 @@ async function startLive() {
     setSession(result.id);
     await loadSessions();
     state.liveFeed = [];
+    state.liveSeries = [];
     state.ppsSample = null;
     paintFeed();
     ["rate-packets", "count-packets", "count-flows", "count-alerts", "proto-TCP", "proto-UDP", "proto-DNS", "proto-ARP", "proto-ICMP"].forEach((id) => {
@@ -1113,6 +1305,21 @@ function applyLiveStats(payload) {
   setMetric("count-flows", payload.connections);
   setMetric("count-alerts", payload.alerts);
   paintProtocols(payload.protocols || {});
+  if (payload.observed_at && Number.isFinite(packets)) {
+    const protocols = payload.protocols || {};
+    state.liveSeries.push({
+      at: payload.observed_at,
+      packets,
+      tcp: Number(protocols.TCP) || 0,
+      udp: Number(protocols.UDP) || 0,
+      dns: Number(protocols.DNS) || 0,
+      arp: Number(protocols.ARP) || 0,
+      icmp: Number(protocols.ICMP) || 0,
+    });
+    state.liveSeries = state.liveSeries.slice(-40);
+    const chart = document.getElementById("live-chart");
+    if (chart) chart.innerHTML = liveChart(state.liveSeries);
+  }
   const caption = document.getElementById("live-caption");
   if (caption) caption.textContent = t("live.liveCapture");
   refreshLiveMap(false);
@@ -1152,6 +1359,7 @@ function paintFeed() {
 }
 
 function onViewClick(event) {
+  if (event.target.closest(".info-tip")) return;
   const pageButton = event.target.closest("[data-page-key]");
   if (pageButton && !pageButton.disabled) {
     const key = pageButton.dataset.pageKey;
@@ -1310,6 +1518,9 @@ document.getElementById("scrim").addEventListener("click", () => {
 document.getElementById("lang-select").addEventListener("change", (event) => {
   setLanguage(event.target.value);
 });
+document.getElementById("theme-select").addEventListener("change", (event) => {
+  applyTheme(event.target.value);
+});
 onLanguage(() => {
   refreshHealth();
   render();
@@ -1317,7 +1528,157 @@ onLanguage(() => {
 if (localStorage.getItem("cybertrace-nav") === "1") document.body.classList.add("nav-collapsed");
 window.addEventListener("hashchange", syncRoute);
 
+function lesson(detector, part) {
+  const key = `lessons.${detector}.${part}`;
+  const value = t(key);
+  return value === key ? t(`lessons.generic.${part}`) : value;
+}
+
+function intelText(info) {
+  if (info && info.status === "configured") return t("intel.configured");
+  return t("intel.unavailable");
+}
+
+function liveChart(series) {
+  if (!series || series.length < 2) return emptyBlock(t("live.chartEmpty"), t("live.chartEmptyHint"));
+  const width = 640;
+  const height = 160;
+  const max = Math.max(1, ...series.map((point) => Number(point.packets) || 0));
+  const step = (width - 24) / (series.length - 1);
+  const line = (key) => series.map((point, index) => {
+    const x = 12 + index * step;
+    const y = height - 16 - ((Number(point[key]) || 0) / max) * (height - 32);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(" ");
+  const latest = series[series.length - 1];
+  return `<svg class="live-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(t("live.chart"))}"><polyline points="${line("packets")}" class="packets"></polyline><polyline points="${line("tcp")}" class="tcp"></polyline><polyline points="${line("udp")}" class="udp"></polyline><polyline points="${line("dns")}" class="dns"></polyline></svg><p class="quiet">${esc(latest.at)} · TCP ${esc(latest.tcp)} · UDP ${esc(latest.udp)} · DNS ${esc(latest.dns)} · ARP ${esc(latest.arp)} · ICMP ${esc(latest.icmp)}</p>`;
+}
+
+function applyTheme(theme) {
+  const next = theme === "light" ? "light" : "dark";
+  document.documentElement.dataset.theme = next;
+  localStorage.setItem("cybertrace-theme", next);
+  document.querySelectorAll("#theme-select, #settings-theme").forEach((node) => {
+    node.value = next;
+  });
+}
+
+async function loadRules() {
+  const list = document.getElementById("rule-list");
+  const custom = document.getElementById("custom-rule-list");
+  if (!list) return;
+  try {
+    const [rules, customRules, context] = await Promise.all([
+      api("/api/rules"),
+      api("/api/custom-rules"),
+      api("/api/context/status"),
+    ]);
+    const geo = context.geoip && context.geoip.status === "observed" ? t("geoip.ready") : t("geoip.unavailable");
+    const intel = context.threat_intel && context.threat_intel.status === "configured" ? t("intel.configured") : t("intel.unavailable");
+    const email = context.email && context.email.enabled ? t("email.enabled") : t("email.disabled");
+    list.innerHTML = `<p class="quiet">${esc(t("geoip.label"))}: ${esc(geo)} · ${esc(t("intel.note"))} ${esc(intel)} · ${esc(t("email.label"))} ${esc(email)}</p>` + (rules.items || []).map((rule) => `
+      <label class="rule-row"><input type="checkbox" data-rule-id="${esc(rule.rule_id)}" ${rule.enabled ? "checked" : ""}><span><strong>${esc(rule.rule_id)}</strong><br>${esc(rule.description || "")}</span></label>`).join("");
+    list.querySelectorAll("[data-rule-id]").forEach((input) => {
+      input.addEventListener("change", async () => {
+        await api(`/api/rules/${encodeURIComponent(input.dataset.ruleId)}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ enabled: input.checked }),
+        });
+      });
+    });
+    custom.innerHTML = (customRules.items || []).length
+      ? customRules.items.map((rule) => `<p>${esc(rule.name)} · ${esc(rule.field)} ${esc(rule.operator)} ${esc(rule.value)}</p>`).join("")
+      : `<p class="quiet">${esc(t("rules.none"))}</p>`;
+  } catch (error) {
+    list.innerHTML = `<p class="callout">${esc(error.message)}</p>`;
+  }
+}
+
+async function saveCustomRule(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const message = document.getElementById("rule-message");
+  const body = Object.fromEntries(new FormData(form).entries());
+  try {
+    await api("/api/custom-rules", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    form.reset();
+    if (message) message.textContent = t("rules.saved");
+    await loadRules();
+  } catch (error) {
+    if (message) message.textContent = error.message;
+  }
+}
+
+function showFloating(id, text, anchor) {
+  const tip = document.getElementById(id);
+  if (!tip || !anchor) return;
+  tip.textContent = text || "";
+  tip.hidden = false;
+  const bounds = anchor.getBoundingClientRect();
+  const box = tip.getBoundingClientRect();
+  const rtl = document.documentElement.dir === "rtl";
+  let left = rtl ? bounds.right - box.width : bounds.left;
+  left = Math.max(8, Math.min(left, window.innerWidth - box.width - 8));
+  let top = bounds.bottom + 8;
+  if (top + box.height > window.innerHeight - 8) top = Math.max(8, bounds.top - box.height - 8);
+  tip.style.left = `${left}px`;
+  tip.style.top = `${top}px`;
+}
+
+function hideFloating(id) {
+  const tip = document.getElementById(id);
+  if (tip) tip.hidden = true;
+}
+
+const tipHover = window.matchMedia("(hover: hover) and (pointer: fine)");
+document.addEventListener("pointerover", (event) => {
+  if (!tipHover.matches) return;
+  const info = event.target.closest && event.target.closest(".info-tip");
+  if (info) {
+    showFloating("term-tip", info.dataset.tip || "", info);
+    return;
+  }
+  const point = event.target.closest && event.target.closest("[data-chart-tip]");
+  if (point) showFloating("chart-tip", point.dataset.chartTip || "", point);
+});
+document.addEventListener("pointerout", (event) => {
+  if (event.target.closest && event.target.closest(".info-tip")) hideFloating("term-tip");
+  if (event.target.closest && event.target.closest("[data-chart-tip]")) hideFloating("chart-tip");
+});
+document.addEventListener("focusin", (event) => {
+  const info = event.target.closest && event.target.closest(".info-tip");
+  if (info) showFloating("term-tip", info.dataset.tip || "", info);
+  const point = event.target.closest && event.target.closest("[data-chart-tip]");
+  if (point) showFloating("chart-tip", point.dataset.chartTip || "", point);
+});
+document.addEventListener("focusout", () => {
+  hideFloating("term-tip");
+  hideFloating("chart-tip");
+});
+document.addEventListener("click", (event) => {
+  const info = event.target.closest && event.target.closest(".info-tip");
+  if (!info || tipHover.matches) return;
+  event.preventDefault();
+  const tip = document.getElementById("term-tip");
+  if (tip && !tip.hidden) {
+    hideFloating("term-tip");
+    return;
+  }
+  showFloating("term-tip", info.dataset.tip || "", info);
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape") return;
+  hideFloating("term-tip");
+  hideFloating("chart-tip");
+});
+
 async function boot() {
+  applyTheme(localStorage.getItem("cybertrace-theme") || "dark");
   try {
     await initI18n();
   } catch {

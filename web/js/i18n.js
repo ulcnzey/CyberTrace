@@ -38,7 +38,7 @@ export async function initI18n() {
 export async function setLanguage(code, notify = true) {
   if (!CODES.includes(code)) return;
   if (!catalogs[code]) {
-    const response = await fetch(`/static/locales/${code}.json?v=9`);
+    const response = await fetch(`/static/locales/${code}.json?v=13`);
     if (!response.ok) throw new Error("locale");
     catalogs[code] = await response.json();
   }

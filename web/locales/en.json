@@ -62,7 +62,8 @@
     "sent": "sent",
     "received": "received",
     "seconds": "seconds",
-    "to": "to"
+    "to": "to",
+    "theme": "Theme"
   },
   "roles": {
     "internal": "internal",
@@ -175,7 +176,18 @@
     "noEvidence": "No evidence was stored for this finding.",
     "noAction": "No recommended action was stored.",
     "unknownRule": "unknown rule",
-    "unspecified": "unspecified"
+    "unspecified": "unspecified",
+    "status": "Status",
+    "note": "Analyst note",
+    "save": "Save status",
+    "saved": "Status saved.",
+    "lifecycle": "Status",
+    "statuses": {
+      "open": "Open",
+      "acknowledged": "Acknowledged",
+      "resolved": "Resolved",
+      "dismissed": "Dismissed"
+    }
   },
   "hosts": {
     "title": "Hosts",
@@ -302,7 +314,10 @@
     "packets": "Packets",
     "connections": "Active connections",
     "alerts": "Security alerts",
-    "events": "Security events"
+    "events": "Security events",
+    "chart": "Live traffic",
+    "chartEmpty": "No live chart yet",
+    "chartEmptyHint": "The chart starts after two statistics messages arrive. Reloading does not invent earlier points."
   },
   "settings": {
     "title": "Settings",
@@ -327,6 +342,242 @@
     "invalidFile": "Unsupported file format. Upload a PCAP or PCAPNG file.",
     "websocket": "WebSocket disconnected.",
     "upload": "Upload failed."
+  },
+  "theme": {
+    "title": "Theme",
+    "dark": "Dark",
+    "light": "Light"
+  },
+  "rules": {
+    "title": "Detection rules",
+    "lead": "Disable a built-in detector or add a declarative comparison. Stored thresholds override the code default. Environment defaults still apply when a threshold is empty.",
+    "custom": "Custom rule",
+    "name": "Name",
+    "field": "Field",
+    "operator": "Operator",
+    "value": "Value",
+    "description": "Description",
+    "create": "Create rule",
+    "saved": "Rule saved.",
+    "none": "No custom rules.",
+    "fields": {
+      "source_ip": "Source IP",
+      "destination_ip": "Destination IP",
+      "destination_port": "Destination port",
+      "protocol": "Protocol",
+      "packet_count": "Packet count",
+      "byte_count": "Byte count"
+    },
+    "operators": {
+      "equals": "equals",
+      "not_equals": "not equals",
+      "greater_than": "greater than",
+      "less_than": "less than",
+      "contains": "contains"
+    }
+  },
+  "geoip": {
+    "label": "GeoIP",
+    "unavailable": "GeoIP unavailable",
+    "ready": "GeoIP database available"
+  },
+  "intel": {
+    "note": "Threat intelligence",
+    "unavailable": "Unavailable. No reputation is assigned.",
+    "configured": "Provider configured."
+  },
+  "email": {
+    "label": "Email alerts",
+    "enabled": "Enabled",
+    "disabled": "Disabled"
+  },
+  "charts": {
+    "trafficTitle": "Traffic Over Time",
+    "trafficHint": "Observed packet activity throughout the capture.",
+    "rateTitle": "Packets / Second",
+    "rateHint": "Packet density in each observed time slice.",
+    "rateUnavailable": "Rate is not available",
+    "rateUnavailableHint": "This capture has no measurable time span, so packets per second are not shown.",
+    "protocolTitle": "Protocol Distribution",
+    "protocolHint": "Packet counts by protocol returned for this analysis.",
+    "bytesTitle": "Traffic Volume",
+    "bytesHint": "Observed bytes in each time slice.",
+    "offset": "Offset {seconds}",
+    "seconds": "{value}s",
+    "minutes": "{minutes}m {seconds}s",
+    "packets": "Packets",
+    "bytes": "Bytes",
+    "rate": "Packets/s",
+    "protocol": "Protocol",
+    "count": "Count"
+  },
+  "learn": {
+    "title": "What these words mean",
+    "what": "What is it?",
+    "why": "Why does it matter?",
+    "observed": "What did CyberTrace observe?",
+    "rule": "Detection rule",
+    "verify": "How to verify in Wireshark",
+    "confidence": "Confidence is calculated from the measured evidence. It is not a severity.",
+    "severity": "Severity comes from the fixed policy for this detector. It is not the confidence.",
+    "concepts": {
+      "pcap": {
+        "name": "PCAP",
+        "text": "A file of captured packets. PCAPNG is the newer capture format. CyberTrace reads both and does not keep the raw file."
+      },
+      "packet": {
+        "name": "Packet",
+        "text": "One frame on the network. CyberTrace keeps endpoints, sizes, timestamps, and selected metadata."
+      },
+      "flow": {
+        "name": "Flow",
+        "text": "Packets that share a source, destination, ports, and transport protocol in one direction."
+      },
+      "host": {
+        "name": "Host",
+        "text": "An IP address observed in the capture, with its MAC addresses, counts, and timestamps."
+      },
+      "ioc": {
+        "name": "IOC",
+        "text": "An indicator copied from an alert, such as an IP, domain, URL, port, MAC, User-Agent, or timestamp."
+      },
+      "alert": {
+        "name": "Alert",
+        "text": "A grouped finding with evidence, confidence, severity, and a status you can update."
+      },
+      "finding": {
+        "name": "Finding",
+        "text": "One detector result. It exists only when the rule matched observed traffic."
+      },
+      "confidence": {
+        "name": "Confidence",
+        "text": "How strongly the measurement passed the detector threshold. A separate policy sets severity."
+      },
+      "severity": {
+        "name": "Severity",
+        "text": "The fixed impact label for that detector: info, low, medium, high, or critical. Detectors do not choose it at random."
+      },
+      "rule": {
+        "name": "Detection rule",
+        "text": "The named check, its threshold, and the evidence sentence that cites the observed values."
+      },
+      "tcp": {
+        "name": "TCP",
+        "text": "A connection-oriented transport. SYN and ACK flags are counted on each flow."
+      },
+      "udp": {
+        "name": "UDP",
+        "text": "A connectionless transport. DNS often uses UDP port 53."
+      },
+      "dns": {
+        "name": "DNS",
+        "text": "A name lookup. CyberTrace records the queried name when the packet contains one."
+      },
+      "http": {
+        "name": "HTTP",
+        "text": "Cleartext request metadata: method, host, path, and User-Agent. The body is not stored."
+      },
+      "tls": {
+        "name": "TLS",
+        "text": "When a ClientHello is parsed, the server name is kept only if the SNI extension is present."
+      },
+      "arp": {
+        "name": "ARP",
+        "text": "Address resolution on a local segment. A conflicting IP-to-MAC mapping is reported as suspicious, not as proof of an attack."
+      },
+      "beaconing": {
+        "name": "Beaconing",
+        "text": "Repeated connections to one destination on a steady interval."
+      },
+      "portScan": {
+        "name": "Port scan",
+        "text": "A horizontal scan touches one port on many hosts. A vertical scan touches many ports on one host."
+      },
+      "syn": {
+        "name": "SYN anomaly",
+        "text": "Many SYN packets toward one service without completed handshakes."
+      },
+      "dnsAnomaly": {
+        "name": "DNS anomaly",
+        "text": "A long label, a high-entropy label, or a large number of distinct names from one source."
+      },
+      "icmp": {
+        "name": "ICMP anomaly",
+        "text": "Echo requests to many destinations, or an unusually large ICMP payload."
+      }
+    }
+  },
+  "lessons": {
+    "generic": {
+      "what": "A detector reported a measurement from this capture.",
+      "why": "The evidence lists the observed values. Compare them with the host owner before treating the event as an incident.",
+      "verify": "Open the same capture in Wireshark and filter on the IP, port, and protocol shown in the evidence."
+    },
+    "horizontal_port_scan": {
+      "what": "One source sent SYN packets to the same port on many hosts.",
+      "why": "That pattern can be a sweep for one service. It can also be an approved inventory scan.",
+      "verify": "In Wireshark, filter tcp.flags.syn==1 && tcp.flags.ack==0 and the source IP, then look at the destination list for that port."
+    },
+    "vertical_port_scan": {
+      "what": "One source sent SYN packets to many ports on one host.",
+      "why": "The source is probing which services answer. Confirm whether that test was authorized.",
+      "verify": "Filter the source and destination IP with tcp.flags.syn==1 && tcp.flags.ack==0 and count the destination ports."
+    },
+    "network_scan": {
+      "what": "One source sent SYN-only probes to many hosts on more than one port.",
+      "why": "This is broader than a single-port sweep. A one-port sweep stays a horizontal port scan.",
+      "verify": "Filter the source IP and SYN packets without ACK, then compare the destination IP and port columns."
+    },
+    "syn_burst": {
+      "what": "Many SYN packets went to one host and port without completed handshakes.",
+      "why": "Unanswered SYNs can be a probe or a connectivity failure.",
+      "verify": "Filter ip.addr==SOURCE && tcp.dstport==PORT && tcp.flags.syn==1 && tcp.flags.ack==0."
+    },
+    "beaconing": {
+      "what": "Connections to one destination repeated on a steady interval.",
+      "why": "A steady interval can be a scheduled client. It can also be automated polling.",
+      "verify": "Follow the TCP or UDP stream and compare the time column between connections."
+    },
+    "dns_anomaly": {
+      "what": "A DNS name was unusually long or high-entropy, or one source asked for many distinct names.",
+      "why": "The evidence cites the length, entropy, or name count that crossed the threshold.",
+      "verify": "Use the dns display filter and inspect the query name shown in the evidence."
+    },
+    "icmp_anomaly": {
+      "what": "ICMP echo requests reached many destinations, or one payload was large.",
+      "why": "The evidence states the destination count or the payload size.",
+      "verify": "Filter icmp.type==8 and compare the destination list or the frame length."
+    },
+    "cleartext_telnet": {
+      "what": "TCP port 23 was observed. The payload was not read.",
+      "why": "Telnet is a cleartext remote-login port. The finding is the port, not captured credentials.",
+      "verify": "Filter tcp.port==23. Do not expect CyberTrace to have stored the session contents."
+    },
+    "cleartext_ftp": {
+      "what": "TCP port 21 was observed. The payload was not read.",
+      "why": "FTP control traffic is cleartext. The finding is the port.",
+      "verify": "Filter tcp.port==21."
+    },
+    "large_outbound": {
+      "what": "An internal address sent a large byte count to a public address.",
+      "why": "The evidence cites the observed byte count. Large transfers can be normal backups or unexpected exfiltration.",
+      "verify": "Use Statistics > Conversations and compare the bytes for the pair in the evidence."
+    },
+    "arp_multi_mac": {
+      "what": "One IP was announced by more than one MAC address.",
+      "why": "This is a suspicious mapping. It can be a NIC change, a misconfiguration, or spoofing. It is not proof of an attack.",
+      "verify": "Filter arp and compare the sender IP and sender MAC for the address in the evidence."
+    },
+    "http_anomaly": {
+      "what": "An HTTP request crossed a measured threshold: URI length, method, URI count, a traversal marker, or User-Agent length or variety.",
+      "why": "A normal path such as /admin is not a finding by itself. The evidence names the measurement.",
+      "verify": "Filter http and inspect the request line and User-Agent. The body is not stored here."
+    },
+    "custom_rule": {
+      "what": "A custom comparison matched an observed flow field.",
+      "why": "The evidence shows the rule, the threshold, and the value taken from the flow.",
+      "verify": "Find the same IP, port, and protocol in Wireshark and compare the count or bytes with the evidence."
+    }
   },
   "phrases": {
     "analysisStarted": "Analysis started for {label}.",
