@@ -25,6 +25,7 @@
 
 
 
+
 CyberTrace provides a unified workflow for offline PCAP analysis and live network monitoring.
 
 The platform processes network traffic through a common analysis pipeline:
@@ -248,7 +249,8 @@ For each observed host, the platform can display:
 * Related alerts
 * Timeline events
 
-![Host Analysis](docs/screenshots/host-analysis.png)
+<img width="1342" height="637" alt="host-analysis" src="https://github.com/user-attachments/assets/fdbdbd4c-e7f9-4406-a803-099dff03d41c" />
+
 
 ---
 
