@@ -22,7 +22,8 @@
 
 ## Demo
 
-![CyberTrace Demo](docs/demo/cybertrace-demo.gif)
+
+
 
 CyberTrace provides a unified workflow for offline PCAP analysis and live network monitoring.
 
@@ -95,7 +96,7 @@ CyberTrace can analyze `.pcap` and `.pcapng` network captures and extract inform
 * Network flows
 * TCP connections
 
-![PCAP Analysis](docs/screenshots/pcap-analysis.png)
+<img width="1346" height="631" alt="pcap-analysis" src="https://github.com/user-attachments/assets/6c6e5880-e8ee-4744-b6b1-cb40835cf10f" />
 
 ---
 
@@ -169,7 +170,8 @@ Each alert can provide contextual information including:
 * Evidence
 * Recommended action
 
-![Alert Detail](docs/screenshots/alert-detail.png)
+<img width="1361" height="637" alt="alert-detail" src="https://github.com/user-attachments/assets/3f636285-8201-4d57-b618-732127aeb8db" />
+
 
 ---
 
@@ -264,7 +266,8 @@ Supported IOC categories include:
 * User-Agent values
 * Timestamps
 
-![IOC Analysis](docs/screenshots/iocs.png)
+<img width="1334" height="633" alt="iocs" src="https://github.com/user-attachments/assets/1f16604a-a0a4-4811-99f4-4b1b2441b956" />
+
 
 ---
 
@@ -280,7 +283,8 @@ The timeline can contain:
 * IOC observations
 * First/last seen timestamps
 
-![Timeline](docs/screenshots/timeline.png)
+<img width="1344" height="636" alt="timeline" src="https://github.com/user-attachments/assets/41b9c372-f468-42d2-ba4c-2a0880d7cef1" />
+
 
 ---
 
@@ -299,7 +303,8 @@ The monitoring interface provides real-time visibility into:
 * Active connections
 * Security events
 
-![Live Monitoring](docs/screenshots/live-monitoring.png)
+<img width="1347" height="630" alt="live-monitoring" src="https://github.com/user-attachments/assets/de3c9c44-ea43-4f28-9699-b1d913b5d83a" />
+
 
 The live monitoring pipeline follows the same analysis concepts used for offline PCAP processing.
 
@@ -332,7 +337,8 @@ JSON reports provide machine-readable analysis results suitable for further proc
 
 PDF reports provide a structured representation of the investigation, including relevant findings, alerts, IOCs, timeline information, and traffic statistics.
 
-![Reports](docs/screenshots/reports.png)
+<img width="1356" height="435" alt="reports" src="https://github.com/user-attachments/assets/e52eea99-fb77-46f6-8795-f7b9214394dc" />
+
 
 ---
 
@@ -462,13 +468,16 @@ CyberTrace provides a security-focused web interface with:
 
 ### Dashboard
 
-![Dashboard](docs/screenshots/dashboard.png)
+<img width="1344" height="637" alt="dashboard" src="https://github.com/user-attachments/assets/57a4ec57-78db-4d63-9f3f-190b5063b113" />
+
 
 ### Settings
 
-![Settings](docs/screenshots/settings1.png)
+<img width="1343" height="630" alt="settings1" src="https://github.com/user-attachments/assets/75b7103c-c2b6-41f7-8553-954cc0bc771d" />
 
-![Settings](docs/screenshots/settings2.png)
+
+<img width="1337" height="630" alt="settings2" src="https://github.com/user-attachments/assets/6761ab5f-a4e5-4dd6-8b16-7d78fb1ff63b" />
+
 
 ---
 
@@ -568,35 +577,43 @@ Additional interface views:
 
 ### Dashboard
 
-![Dashboard](docs/screenshots/dashboard.png)
+<img width="1344" height="637" alt="dashboard" src="https://github.com/user-attachments/assets/59b535f4-e1c0-40bc-ad35-c717a8f3c253" />
+
 
 ### PCAP Analysis
 
-![PCAP Analysis](docs/screenshots/pcap-analysis.png)
+<img width="1346" height="631" alt="pcap-analysis" src="https://github.com/user-attachments/assets/6d36fdab-18a3-477b-8d24-0f6f5d7421de" />
+
 
 ### Alert Investigation
 
-![Alert Detail](docs/screenshots/alert-detail.png)
+<img width="1361" height="637" alt="alert-detail" src="https://github.com/user-attachments/assets/ae6af11b-7310-48b7-bffe-aec32ae4c12b" />
+
 
 ### Host Analysis
 
-![Host Analysis](docs/screenshots/host-analysis.png)
+<img width="1342" height="637" alt="host-analysis" src="https://github.com/user-attachments/assets/0d3bba90-29d6-4fe3-9552-fd6db2363179" />
+
 
 ### IOC Investigation
 
-![IOC Analysis](docs/screenshots/iocs.png)
+<img width="1334" height="633" alt="iocs" src="https://github.com/user-attachments/assets/03ec8375-0be1-4f7b-ac30-ab2a514954c6" />
+
 
 ### Live Monitoring
 
-![Live Monitoring](docs/screenshots/live-monitoring.png)
+<img width="1347" height="630" alt="live-monitoring" src="https://github.com/user-attachments/assets/131c67d0-527e-474e-8b4d-d9521e17446a" />
+
 
 ### Timeline
 
-![Timeline](docs/screenshots/timeline.png)
+<img width="1344" height="636" alt="timeline" src="https://github.com/user-attachments/assets/e3b21360-af38-42f2-ae56-aa01d86b4c5b" />
+
 
 ### Reports
 
-![Reports](docs/screenshots/reports.png)
+<img width="1356" height="435" alt="reports" src="https://github.com/user-attachments/assets/8e378810-38a1-4591-bec4-6f4af0741bef" />
+
 
 ---
 
